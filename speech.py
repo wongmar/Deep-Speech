@@ -139,6 +139,8 @@ def SimpleSparseTensorFrom(x):
   return tf.SparseTensor(x_ix, x_val, x_shape)
 
 
+#This equalizes the lengths of the labels
+#I wanted this to use the labels placeholder but its saved as a tensor
 mnist = import_data.read_data_sets("data", batch_size,n_steps)
 labs = []
 for a in mnist.labels:
@@ -169,13 +171,11 @@ def create_label(z):
 '''
 
 # Define loss and optimizer
-#labels needs to be a SparseTensor of i,[(b,t)] where i is the id of batch b, time t
-#batch b is which batch, time t is which step?
 s_length = np.full(batch_size,n_steps, dtype=np.int64)
 
 print("Defining Cost")
 #cost =  tf.reduce_mean(tf.contrib.ctc.ctc_loss(inputs=pred, labels=lab, sequence_length=s_length))
-cost =  tf.reduce_mean(tf.contrib.ctc.ctc_loss(inputs=pred, labels=y, sequence_length=s_length))
+cost =  tf.reduce_mean(tf.contrib.ctc.ctc_loss(inputs=pred, labels=lab, sequence_length=s_length))
 
 print("Defining Optimizer")
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost,aggregation_method=2) # Adam Optimizer
@@ -209,22 +209,10 @@ with tf.Session() as sess:
 			batch_xs, batch_ys = mnist.next_batch(batch_size)
 			# Reshape data
 			xs_shaped = batch_xs.copy()
-			xs_shaped.resize(batch_size,n_steps, n_input + 2*n_input*n_context)
-			
-			
-			labs = []
-			for a in batch_ys:
-				tmp = [charToInt(c) for c in a[0]]
-				labs.append(tmp)
-			labs += [] * (batch_size - len(labs))
-			for i in xrange(len(labs)-1):
-				labs[i] += [0] * (n_steps - len(labs[i]))
-
-			lab = SimpleSparseTensorFrom(labs)
-			
+			xs_shaped.resize(batch_size,n_steps, n_input + 2*n_input*n_context)			
 			
 			print "Running Optimizer"
-			sess.run(optimizer, feed_dict={x: xs_shaped, y: batch_ys, z:labs,
+			sess.run(optimizer, feed_dict={x: xs_shaped, y: batch_ys,
 											istate_fw: np.zeros((batch_size, 2*n_cell_dim)),
 											istate_bw: np.zeros((batch_size, 2*n_cell_dim))})
 			if step % display_step == 0:
