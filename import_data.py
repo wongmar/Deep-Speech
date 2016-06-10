@@ -45,18 +45,19 @@ def _read32(bytestream):
 #*				 - divider
 #etc
 def read_training_data(filename,n_steps,training=True):
-	print("reading file: ",filename)
+	if training == True:
+		print("reading file: ",filename)
 	spectrogram = []
 	logs = []
 	energy = []
 	histogram = []
 	revolve = 0
 	first = True
+	label = ""
 	with open(filename, 'rb') as csvfile:
 		data = csv.reader(csvfile, delimiter=',') 
 		for row in data: #every row is a row of the csv. without formatting each array looks like ['1','2',...,'n'] #data prints the csvreader object
 						 #every row should be an array of time slices for a single utterance
-			#print(row)
 			if training==True:
 				if first:
 					label = row
@@ -70,18 +71,20 @@ def read_training_data(filename,n_steps,training=True):
 					revolve+=1
 				elif revolve == 2:
 					l = [s.strip('[]') for s in row]
+					l = [float(s) for s in l]
 					logs.append(l)
 					revolve+=1
 				elif revolve == 3:
 					e = [s.strip('[]') for s in row]
+					e = [float(s) for s in e]
 					energy.append(e)
 					revolve += 1
 				elif revolve == 4:
 					h = [s.strip('[]') for s in row]
+					h = [float(s) for s in h]
 					histogram.append(h)
 					revolve = 0
 				else:
-					print("else")
 					revolve = 1;
 			else:
 				label = ""
@@ -92,20 +95,25 @@ def read_training_data(filename,n_steps,training=True):
 					revolve+=1
 				elif revolve == 1:
 					l = [s.strip('[]') for s in row]
+					l = [float(s) for s in l]
 					logs.append(l)
 					revolve+=1
 				elif revolve == 2:
 					e = [s.strip('[]') for s in row]
+					e = [float(s) for s in e]
 					energy.append(e)
 					revolve += 1
 				elif revolve == 3:
 					h = [s.strip('[]') for s in row]
+					h = [float(s) for s in h]
 					histogram.append(h)
 					revolve +=1
 				else:
 					revolve = 0;
+				
 	csvfile.close()
 	test = np.array(spectrogram)
+	#test = np.array(logs)
 	test.resize(n_steps,160) #160 for 16000hz, can be changed
 	#print(test.shape)
 	return label,test

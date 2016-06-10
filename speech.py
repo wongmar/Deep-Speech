@@ -10,15 +10,34 @@ import import_data
 def charToInt(c):
 	if c == ' ':
 		return 26
+	elif c =="\'":
+		return 27
 	else:
 		return ord(c) - ord('a')
 
-
+def intToChar(i):
+	if i == 26:
+		return ' '
+	elif i == 27:
+		return "\'"
+	else:
+		return chr(i+ord('a'))
+		
+def print_output(a):
+	output = ''
+	for row in a:
+		max = -1;
+		for prob in row:
+			if prob>max:
+				max = prob
+		output += intToChar(max)
+	return output
+		
 #Engine
-t_flag = 1 #training flag
+t_flag = 0 #training flag
 learning_rate = 0.0001
-training_iters = 100
-batch_size = 2
+training_iters = 10000
+batch_size = 1 #must be set to 1 for evaluating
 display_step = 10
 dropout_rate = 0.05
 relu_clip = 20
@@ -33,7 +52,7 @@ n_hidden_5 = n_input + 2*n_input*n_context
 n_cell_dim = n_input + 2*n_input*n_context
 n_hidden_3 = 2 * n_cell_dim
 
-n_character = 28
+n_character = 29
 
 n_hidden_6 = n_character
 
@@ -141,54 +160,56 @@ def SimpleSparseTensorFrom(x):
 
 #This equalizes the lengths of the labels
 #I wanted this to use the labels placeholder but its saved as a tensor
-mnist = import_data.read_data_sets("data", batch_size,n_steps)
-labs = []
-for a in mnist.labels:
-	tmp = [charToInt(c) for c in a[0]]
-	labs.append(tmp)
-labs += [] * (batch_size - len(labs))
-for i in xrange(len(labs)-1):
-	labs[i] += [0] * (n_steps - len(labs[i]))
-
-lab = SimpleSparseTensorFrom(labs)
-
-'''
-#An attempt to have the program not read the data set twice. Since a tensor cannot be modified or read outside of a session, this function failed to work
-def create_label(z):
+if t_flag:
+	mnist = import_data.read_data_sets("out", batch_size,n_steps,training=t_flag)
 	labs = []
-	for a in z:
+	for a in mnist.labels:
 		tmp = [charToInt(c) for c in a[0]]
 		labs.append(tmp)
-
-	for i in xrange(len(labs)):
+	labs += [] * (batch_size - len(labs))
+	for i in xrange(len(labs)-1):
 		labs[i] += [0] * (n_steps - len(labs[i]))
-	labs += [''] * (batch_size - len(labs))
 
-
-	#lab = tf.SparseTensor(indices=index, values=new_labs, shape=sh)
 	lab = SimpleSparseTensorFrom(labs)
-	return lab
-'''
 
-# Define loss and optimizer
-s_length = np.full(batch_size,n_steps, dtype=np.int64)
+	'''
+	#An attempt to have the program not read the data set twice. Since a tensor cannot be modified or read outside of a session, this function failed to work
+	def create_label(z):
+		labs = []
+		for a in z:
+			tmp = [charToInt(c) for c in a[0]]
+			labs.append(tmp)
 
-print("Defining Cost")
-#cost =  tf.reduce_mean(tf.contrib.ctc.ctc_loss(inputs=pred, labels=lab, sequence_length=s_length))
-cost =  tf.reduce_mean(tf.contrib.ctc.ctc_loss(inputs=pred, labels=lab, sequence_length=s_length))
+		for i in xrange(len(labs)):
+			labs[i] += [0] * (n_steps - len(labs[i]))
+		labs += [''] * (batch_size - len(labs))
 
-print("Defining Optimizer")
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost,aggregation_method=2) # Adam Optimizer
 
-# Evaluate model ~~~~~DECODE~~~~~
-#correct_pred = tf.equal(tf.argmax(pred,1), tf.argmax(y,1))
-print("Defining Correct Label")
-correct_pred = tf.argmax(pred,1)
+		#lab = tf.SparseTensor(indices=index, values=new_labs, shape=sh)
+		lab = SimpleSparseTensorFrom(labs)
+		return lab
+	'''
 
-print "Defining Accuracy"
-accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+	# Define loss and optimizer
+	s_length = np.full(batch_size,n_steps, dtype=np.int64)
+
+	print("Defining Cost")
+	#cost =  tf.reduce_mean(tf.contrib.ctc.ctc_loss(inputs=pred, labels=lab, sequence_length=s_length))
+	cost =  tf.reduce_mean(tf.contrib.ctc.ctc_loss(inputs=pred, labels=lab, sequence_length=s_length))
+
+	print("Defining Optimizer")
+	optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost,aggregation_method=2) # Adam Optimizer
+
+	# Evaluate model ~~~~~DECODE~~~~~
+	#correct_pred = tf.equal(tf.argmax(pred,1), tf.argmax(y,1))
+	print("Defining Correct Label")
+	correct_pred = tf.argmax(pred,1)
+	#correct_pred = tf.equal(tf.argmax(pred,1), tf.argmax(labs,1))
+
+	print "Defining Accuracy"
+	accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 	
-print("Initializing Variables")
+#print("Initializing Variables")
 # Initializing the variables
 init = tf.initialize_all_variables()
 
@@ -234,8 +255,16 @@ with tf.Session() as sess:
 		save_path = saver.save(sess, "weights.ckpt")
 		print("Model saved in file: %s" % save_path)
 	if t_flag == 0:
-		mnist = import_data.read_data_sets("data",1,n_steps,training=False)
+		mnist = import_data.read_data_sets("out",1,n_steps,training=False)
+		xs, ys = mnist.next_batch(1)
+		xs_shaped = xs.copy()
+		xs_shaped.resize(1,n_steps, n_input + 2*n_input*n_context)
+		y_shaped = []
+		y_shaped.append(ys)
 		prediction=tf.argmax(pred,1)
-		print "predictions", prediction.eval(feed_dict={x: mnist.images, y:mnist.labels[0], istate_fw: np.zeros((batch_size, 2*n_cell_dim)),
-													istate_bw: np.zeros((batch_size, 2*n_cell_dim))}, session=sess)
+		output = prediction.eval(feed_dict={x: xs_shaped, y:y_shaped, istate_fw: np.zeros((1, 2*n_cell_dim)),
+													istate_bw: np.zeros((1, 2*n_cell_dim))}, session=sess)
+												
+		print print_output(output)
+		
 	sess.close()
